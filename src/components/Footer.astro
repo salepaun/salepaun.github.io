@@ -1,0 +1,57 @@
+---
+// Custom footer that wraps Starlight's default and appends a version badge so
+// readers can see which API release these docs target.
+import Default from '@astrojs/starlight/components/Footer.astro';
+import { PACKAGE_VERSION, PACKAGE_STATUS } from '../version';
+---
+
+<Default {...Astro.props}><slot /></Default>
+
+<div class="docs-version">
+  <span class="docs-version__label">Docs for AutoLayout&nbsp;PRO</span>
+  <span class="docs-version__pill">
+    v{PACKAGE_VERSION}{PACKAGE_STATUS ? <span class="docs-version__status"> · {PACKAGE_STATUS}</span> : null}
+  </span>
+  <a class="docs-version__changelog" href="/changelog/">Changelog</a>
+</div>
+
+<style>
+  .docs-version {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    flex-wrap: wrap;
+    margin-top: 1.25rem;
+    padding-top: 0.75rem;
+    border-top: 1px solid var(--sl-color-hairline);
+    font-size: var(--sl-text-xs);
+    color: var(--sl-color-gray-3);
+  }
+  .docs-version__label {
+    font-weight: 500;
+  }
+  .docs-version__pill {
+    display: inline-flex;
+    align-items: center;
+    padding: 0.15rem 0.55rem;
+    border-radius: 999px;
+    background: var(--sl-color-accent-low);
+    color: var(--sl-color-text-accent);
+    font-variant-numeric: tabular-nums;
+    font-weight: 600;
+  }
+  .docs-version__status {
+    font-weight: 400;
+    opacity: 0.8;
+    margin-left: 0.1rem;
+  }
+  .docs-version__changelog {
+    margin-left: auto;
+    color: var(--sl-color-gray-3);
+    text-decoration: none;
+  }
+  .docs-version__changelog:hover {
+    color: var(--sl-color-text-accent);
+    text-decoration: underline;
+  }
+</style>

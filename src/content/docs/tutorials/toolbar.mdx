@@ -1,0 +1,142 @@
+---
+title: 'Tutorial: Toolbar'
+description: Build a top toolbar with brand, spacer, and action buttons. The simplest possible AutoLayout PRO recipe — done in under 30 lines.
+sidebar:
+  order: 1
+  label: Toolbar
+---
+
+import { Aside, Tabs, TabItem } from '@astrojs/starlight/components';
+
+<Aside type="tip" title="Runnable demo">
+  Open `Assets/AutoLayoutPRO/Demos/Scenes/SizingFill.unity` to see this layout running inside Unity. The scene is generated from a single C# builder; read `Assets/DemoBuilders/Runtime/Primitives/SizingFillBuilder.cs` for the source.
+</Aside>
+
+What you'll build: a horizontal toolbar with a brand on the left, spacing in the middle, and two action buttons on the right.
+
+```
+┌──────────────────────────────────────────────────────────┐
+│  My App                              [Settings]  [Login] │
+└──────────────────────────────────────────────────────────┘
+```
+
+What you'll learn:
+
+- Row layout with mixed-size children
+- The "spacer" pattern — `WidthFill()` between siblings
+- Cross-axis centering for differently-sized buttons
+- Padding on the container
+
+## Build it
+
+<Tabs syncKey="approach">
+<TabItem label="Inspector">
+
+<Aside type="note" title="GIF coming soon">
+  Step-by-step Inspector walkthrough video — coming in a future update. For now, the textual recipe below mirrors the code path.
+</Aside>
+
+1. Create a UI GameObject (`GameObject → UI → Image`, then remove the Image if you want a transparent toolbar).
+2. Add the **AutoLayout** component. Set:
+   - **Layout Type:** `Row`
+   - **Width:** `Fill`
+   - **Height:** `48`
+   - **Padding:** `12` horizontal, `0` vertical
+   - **Gap:** `8`
+   - **Cross Axis Align:** `Center`
+3. Add three children inside it:
+   - **Brand** — Text "My App", **Width:** `TextSize`, **Height:** `TextSize`
+   - **Spacer** — empty GameObject with AutoLayout, **Width:** `Fill`
+   - **Settings button** — see below
+   - **Login button** — see below
+
+For each button: a child GameObject with AutoLayout (`Hug` width, `Hug` height, `Padding 12,8`), an `Image` for background, and a `TextMeshProUGUI` child.
+
+The Inspector is fine for one-off toolbars. The code approach pays off when you have many.
+
+</TabItem>
+
+<TabItem label="Code">
+
+The full recipe via [`AutoUI`](/auto-ui/):
+
+```csharp
+using AutoLayoutPRO;
+using AutoLayoutPRO.Builder;
+using UnityEngine;
+
+public class Toolbar : MonoBehaviour
+{
+    void Start()
+    {
+        AutoUI.Create(transform)
+            .Row().WidthFill().Height(48)
+            .Padding(12, 0).Gap(8)
+            .CrossAlign(Alignment.Center)
+            .Background(new Color(0.1f, 0.1f, 0.14f))
+            .Children(
+                AutoUI.Create().TextSize().Text("My App", 18f, Color.white),
+                AutoUI.Create().WidthFill(),                            // spacer
+                AutoUI.Create().Button("Settings", OnSettings),
+                AutoUI.Create().Button("Login",    OnLogin)
+            )
+            .Build();
+    }
+
+    void OnSettings() => Debug.Log("Settings clicked");
+    void OnLogin()    => Debug.Log("Login clicked");
+}
+```
+
+That's the entire toolbar. ~15 lines.
+
+### How it works
+
+| Line | What it does |
+|---|---|
+| `.Row().WidthFill().Height(48)` | Horizontal layout, fills parent width, fixed 48px tall (typical toolbar height). |
+| `.Padding(12, 0)` | 12px on left/right (so brand and buttons aren't flush with edges), 0 vertical. |
+| `.Gap(8)` | 8px spacing between adjacent children. |
+| `.CrossAlign(Alignment.Center)` | Vertically centers children within the toolbar — important when brand text and buttons have different heights. |
+| `.Background(...)` | Adds an Image component with the given color. Use `.Background(sprite)` for a textured toolbar. |
+| `AutoUI.Create().TextSize().Text(...)` | The brand label sizes itself to its text. |
+| `AutoUI.Create().WidthFill()` | The **spacer** — an empty Fill element pushes everything after it to the right edge. |
+| `AutoUI.Create().Button(label, action)` | Convenience helper that wraps Background + Text + OnClick into one chain. |
+
+## The spacer pattern
+
+The single most useful pattern in directional auto-layout. A child with `WidthFill()` (in a Row) eats all leftover horizontal space, pushing later siblings to the end.
+
+```csharp
+// Three sections: left, center, right
+AutoUI.Create().Row().WidthFill()
+    .Children(
+        Left(),
+        AutoUI.Create().WidthFill(),     // pushes Center to middle
+        Center(),
+        AutoUI.Create().WidthFill(),     // pushes Right to end
+        Right()
+    )
+    .Build();
+```
+
+For the toolbar, one spacer is enough — Brand stays left, buttons go right.
+
+</TabItem>
+</Tabs>
+
+## Try this next
+
+**Right-to-left support.** Set `.RTL()` on the toolbar — the buttons end up on the left for Arabic/Hebrew layouts, no other changes needed.
+
+**Sticky shadow.** Wrap the toolbar in a `Column` and add a thin Row beneath with a darker color — that's your "shadow" / divider line.
+
+**Mobile breakpoint.** Use `.If(Screen.width < 600, b => b.Padding(8, 0))` to tighten the padding on narrow viewports.
+
+**Action overflow.** When you have more buttons than fit, replace the trailing buttons with a [Dropdown](/dropdown/) "More ⋮" menu.
+
+## See also
+
+- [Row & Column](/row-column/) — full reference on Row, Column, and Wrap
+- [Sizing → Sizing modes](/sizing/#sizing-modes) — when to use Fill / Hug / Pixels
+- [AutoUI Builder](/auto-ui/) — the chainable API

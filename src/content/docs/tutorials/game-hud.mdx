@@ -1,0 +1,241 @@
+---
+title: 'Tutorial: Game HUD'
+description: A game HUD with health bar, minimap, and ability hotbar — demonstrates composing multiple Absolute children into one heads-up overlay.
+sidebar:
+  order: 8
+  label: Game HUD
+---
+
+import { Aside, Tabs, TabItem } from '@astrojs/starlight/components';
+
+<Aside type="tip" title="Runnable demo">
+  The progress + tweening parts of this HUD ship as a focused scene at `Assets/AutoLayoutPRO/Demos/Scenes/ProgressTweening.unity` (linear + radial progress on a coroutine loop). Source: `Assets/DemoBuilders/Runtime/Components/ProgressTweeningBuilder.cs`.
+</Aside>
+
+What you'll build: an overlay HUD that sits on top of your game viewport. Health + mana bars top-left, minimap top-right, ability hotbar bottom-center, score text top-center.
+
+```
+┌──────────────────────────────────────────────┐
+│ ❤ ▓▓▓▓▓▓▓░░░       SCORE: 1240    ┌────────┐│
+│ ✦ ▓▓▓▓▓▓▓▓▓░                       │minimap ││
+│                                     └────────┘│
+│                                               │
+│              ┌─┬─┬─┬─┬─┬─┬─┬─┐                │
+│              │1│2│3│4│Q│W│E│R│  ← hotbar     │
+│              └─┴─┴─┴─┴─┴─┴─┴─┘                │
+└──────────────────────────────────────────────┘
+```
+
+What you'll learn:
+
+- Composing multiple **Absolute** children pinned to different corners
+- Linear vs Radial [ProgressBar](/progress-bar/) (HP bar + cooldown rings)
+- The hotbar pattern: Row + `Each<T>` over slot data
+- When to use `.Cover()` vs `.Absolute()` vs `.Top()` / `.Bottom()` / `.Left()` / `.Right()`
+
+## Build it
+
+<Tabs syncKey="approach">
+<TabItem label="Inspector">
+
+<Aside type="note" title="GIF coming soon">
+  Step-by-step Inspector walkthrough video — coming in a future update.
+</Aside>
+
+In the Inspector:
+
+1. Outer GameObject with `AutoLayout`, `LayoutType = None`, `Width/Height = Fill`. (Set to None because children manage their own positions.)
+2. Add four children, each with `Placement = Absolute`. Set their anchor edges via the absolute-position fields:
+   - **HP/Mana** — Top: 16, Left: 16
+   - **Score** — Top: 16, anchored center horizontally (use TopBottom unset, custom horizontal constraint Stretch with both offsets equal)
+   - **Minimap** — Top: 16, Right: 16
+   - **Hotbar** — Bottom: 16, anchored center horizontally
+
+Inside each, add the relevant child layout (Column for HP/Mana, single Image for Minimap, Row for Hotbar).
+
+The code path is shorter and easier to maintain when you have many absolute panels — Inspector wiring of 4+ anchored elements is fiddly.
+
+</TabItem>
+
+<TabItem label="Code">
+
+```csharp
+using AutoLayoutPRO;
+using AutoLayoutPRO.Builder;
+using UnityEngine;
+
+public class GameHUD : MonoBehaviour
+{
+    private record AbilitySlot(string KeyLabel, Color IconTint, float CooldownProgress);
+
+    private static readonly AbilitySlot[] s_Hotbar =
+    {
+        new("1", new Color(0.9f, 0.4f, 0.4f), 0f),
+        new("2", new Color(0.9f, 0.7f, 0.3f), 0.3f),
+        new("3", new Color(0.4f, 0.7f, 0.9f), 0f),
+        new("4", new Color(0.7f, 0.4f, 0.9f), 0.7f),
+        new("Q", new Color(0.5f, 0.9f, 0.5f), 1.0f),
+        new("W", new Color(0.9f, 0.9f, 0.5f), 0f),
+        new("E", new Color(0.9f, 0.5f, 0.7f), 0.5f),
+        new("R", new Color(0.5f, 0.9f, 0.9f), 0f),
+    };
+
+    void Start()
+    {
+        AutoUI.Create(transform)
+            .Layout(LayoutType.None).WidthFill().HeightFill()       // children position absolutely
+            .Children(
+                BuildVitals(),
+                BuildScore(),
+                BuildMinimap(),
+                BuildHotbar()
+            )
+            .Build();
+    }
+
+    // ===== Top-left: HP + Mana bars =====
+    private static LayoutBuilder BuildVitals() =>
+        AutoUI.Create()
+            .Width(220).HeightHug()
+            .Absolute()
+            .Top(UIPosition.Pixels(16))
+            .Left(UIPosition.Pixels(16))
+            .Column().Padding(10).Gap(6)
+            .Background(new Color(0, 0, 0, 0.55f))
+            .Children(
+                BuildBar("❤", 0.65f, new Color(0.9f, 0.3f, 0.3f)),
+                BuildBar("✦", 0.85f, new Color(0.4f, 0.6f, 1f))
+            );
+
+    private static LayoutBuilder BuildBar(string icon, float value, Color fill) =>
+        AutoUI.Create()
+            .Row().WidthFill().HeightHug().Gap(8)
+            .CrossAlign(Alignment.Center)
+            .Children(
+                AutoUI.Create().Width(16).Center().Text(icon, 14f, fill),
+
+                AutoUI.Create().WidthFill().Height(14)
+                    .ProgressBar(ProgressBarMode.Linear, pb => pb
+                        .Value(value)
+                        .FillColor(fill)
+                        .TrackColor(new Color(0.1f, 0.1f, 0.12f)))
+            );
+
+    // ===== Top-center: score =====
+    private static LayoutBuilder BuildScore() =>
+        AutoUI.Create()
+            .HeightHug().WidthHug()
+            .Absolute()
+            .Top(UIPosition.Pixels(20))
+            .LeftRight(UIPosition.Percentage(50), UIPosition.Percentage(50))   // centered horizontally
+            .Padding(20, 8)
+            .Background(new Color(0, 0, 0, 0.55f))
+            .Center()
+            .Text("SCORE: 1240", 16f, Color.white);
+
+    // ===== Top-right: minimap =====
+    private static LayoutBuilder BuildMinimap() =>
+        AutoUI.Create()
+            .Size(160, 160)
+            .Absolute()
+            .Top(UIPosition.Pixels(16))
+            .Right(UIPosition.Pixels(16))
+            .Background(new Color(0.05f, 0.08f, 0.05f))
+            .Center()
+            .Text("(minimap)", 11f, new Color(0.4f, 0.6f, 0.4f));
+
+    // ===== Bottom-center: ability hotbar =====
+    private static LayoutBuilder BuildHotbar() =>
+        AutoUI.Create()
+            .HeightHug().WidthHug()
+            .Absolute()
+            .Bottom(UIPosition.Pixels(20))
+            .LeftRight(UIPosition.Percentage(50), UIPosition.Percentage(50))
+            .Row().Padding(8).Gap(6)
+            .Background(new Color(0, 0, 0, 0.55f))
+            .Each(s_Hotbar, BuildAbilitySlot);
+
+    private static LayoutBuilder BuildAbilitySlot(AbilitySlot slot) =>
+        AutoUI.Create()
+            .Size(54, 54)
+            .Background(slot.IconTint * 0.4f)
+            .Children(
+                // Key binding label, top-left corner
+                AutoUI.Create()
+                    .Absolute()
+                    .Top(UIPosition.Pixels(2))
+                    .Left(UIPosition.Pixels(4))
+                    .TextSize().Text(slot.KeyLabel, 10f, Color.white),
+
+                // Cooldown overlay — radial progress bar covering the slot
+                slot.CooldownProgress > 0f
+                    ? AutoUI.Create()
+                        .Cover()
+                        .ProgressBar(ProgressBarMode.Radial, pb => pb
+                            .Value(1f - slot.CooldownProgress)               // shrinks as cooldown ticks
+                            .TrackColor(new Color(0, 0, 0, 0.55f))           // dimmed full-cooldown overlay
+                            .FillColor(new Color(0, 0, 0, 0)))               // transparent for "available" portion
+                    : null
+            );
+}
+```
+
+### How it works
+
+#### `LayoutType.None` parent + Absolute children
+
+```csharp
+.Layout(LayoutType.None).WidthFill().HeightFill()
+```
+
+The HUD root has `LayoutType.None` — it doesn't arrange its children at all. Each child uses `.Absolute()` to position itself. This is the right pattern for free-form overlay UIs where each panel has its own anchor.
+
+If we used `.Row()` or `.Column()` here, the layout engine would try to flow the children — and Absolute children **opt out** of that flow (they get sized normally but positioned via their own constraints, not the parent's flow).
+
+#### Centering with stretched percentage anchors
+
+```csharp
+.LeftRight(UIPosition.Percentage(50), UIPosition.Percentage(50))
+```
+
+This is the trick for **centering a Hug-sized absolute child**: anchor *both* horizontal edges to 50% from each side. The element ends up exactly in the middle. Works on either axis (`TopBottom` for vertical centering).
+
+Without this, `.Absolute()` requires explicit `.Left()` or `.Right()` (or both) — there's no implicit "center me" mode.
+
+#### Radial cooldown overlay
+
+```csharp
+slot.CooldownProgress > 0f
+    ? AutoUI.Create()
+        .Cover()
+        .ProgressBar(ProgressBarMode.Radial, pb => pb
+            .Value(1f - slot.CooldownProgress)
+            .TrackColor(new Color(0, 0, 0, 0.55f))      // dimming for the cooled-down portion
+            .FillColor(new Color(0, 0, 0, 0)))          // transparent for the available portion
+    : null
+```
+
+The radial ProgressBar fills clockwise from 0% to 100%. A track color of 55%-alpha black + a transparent fill means the **track shows where you can't cast yet** and the **fill is invisible** (showing the icon below). As cooldown ticks down, the value rises, the dimmed wedge shrinks — classic MOBA / RPG cooldown visualization.
+
+The `slot.CooldownProgress > 0f ? ... : null` skips building the overlay entirely when the slot is off-cooldown. `Children(...)` filters nulls.
+
+</TabItem>
+</Tabs>
+
+## Try this next
+
+**Damage flash.** When HP drops, briefly flash the HP bar's track color via [Tweening](/tweening/). Wire it to your damage event.
+
+**Ability press feedback.** On key press, scale the corresponding slot down to 0.92 then back to 1.0 over 100ms. Nice tactile feedback.
+
+**Buff/debuff icons.** Add a Wrap row above the hotbar with active status icons (poison, shield, haste). Set the container to `Wrap()` and a `WrapGap`; the icons reflow when the row narrows.
+
+**Mini-radar dots.** Inside the minimap, render absolute-positioned colored dots for nearby entities. Update positions in `Update()` based on world positions projected to minimap space.
+
+**Portrait + name.** Add a circular avatar to the top-left vitals panel — set `WidthAspect(1f)` plus a circular sprite, and `Center()` it inside its slot.
+
+## See also
+
+- [Absolute](/absolute/) — placement modes, edge anchors, percentage offsets
+- [ProgressBar](/progress-bar/) — Linear and Radial reference
+- [AutoUI Builder](/auto-ui/) — `Each<T>`, conditional children

@@ -1,0 +1,279 @@
+---
+title: 'Tutorial: Settings Menu'
+description: Build a scrollable settings panel with grouped sections, label/control rows, and sticky save buttons.
+sidebar:
+  order: 2
+  label: Settings Menu
+---
+
+import { Aside, Tabs, TabItem } from '@astrojs/starlight/components';
+
+<Aside type="tip" title="Runnable demo">
+  Open `Assets/AutoLayoutPRO/Demos/Scenes/SettingsMenu.unity` for the full tabbed settings hero scene. The builder source is `Assets/DemoBuilders/Runtime/Apps/SettingsMenuBuilder.cs`.
+</Aside>
+
+What you'll build: a settings panel with a header, a scrollable body of grouped settings (Audio, Graphics, Controls), and a sticky footer with Cancel / Save buttons.
+
+```
+┌─────────────────────────────────────┐
+│  Settings                           │  ← header
+├─────────────────────────────────────┤
+│  AUDIO                          ▲   │
+│    Master volume    ▓▓▓▓░░         │
+│    Music volume     ▓▓▓░░░         │
+│    SFX volume       ▓▓▓▓▓░         │
+│                                     │
+│  GRAPHICS                           │
+│    Resolution       [1920x1080 ▾]   │  ← scrolls
+│    Quality          [High      ▾]   │
+│    VSync            [✓]             │
+│                                     │
+│  CONTROLS                       ▼   │
+│    Sensitivity      ▓▓▓▓░░         │
+├─────────────────────────────────────┤
+│              [Cancel]    [Save]     │  ← sticky footer
+└─────────────────────────────────────┘
+```
+
+What you'll learn:
+
+- The header / scrollable body / sticky footer pattern
+- Grouping settings into sections with section headers
+- Two-column "label + control" rows using a sub-Grid
+- Mixing widgets ([ProgressBar](/progress-bar/), [Dropdown](/dropdown/), Toggle) inside Row and Column containers
+- `Each<T>` to build sections from data
+
+## Build it
+
+<Tabs syncKey="approach">
+<TabItem label="Inspector">
+
+<Aside type="note" title="GIF coming soon">
+  Step-by-step Inspector walkthrough video — coming in a future update.
+</Aside>
+
+The Inspector setup mirrors the code structure:
+
+1. Outer GameObject with `AutoLayout` set to `Column`, `WidthFill` + `HeightFill`.
+2. Three children:
+   - **Header** — Row, `HeightHug`, padding 16, with a Text and an X close button.
+   - **Body** — Row, `HeightFill`, with `AutoLayoutScrollView` component added. Inside: a Column of section groups.
+   - **Footer** — Row, `HeightHug`, padding 12, distribution `End`, with Cancel + Save buttons.
+
+For each section: a Column with a section-label and rows for each setting. Each row is a Grid with two columns (`auto 1f`).
+
+Code is the cleaner path for a settings menu — there's a lot of repetition that `Each<T>` collapses neatly.
+
+</TabItem>
+
+<TabItem label="Code">
+
+```csharp
+using System;
+using AutoLayoutPRO;
+using AutoLayoutPRO.Builder;
+using UnityEngine;
+
+public class SettingsMenu : MonoBehaviour
+{
+    // Data model — one entry per section
+    private record Section(string Title, params SettingRow[] Rows);
+    private abstract record SettingRow(string Label);
+    private record SliderRow(string Label, float Value) : SettingRow(Label);
+    private record ToggleRow(string Label, bool Value) : SettingRow(Label);
+    private record DropdownRow(string Label, string[] Options, int SelectedIndex) : SettingRow(Label);
+
+    private static readonly Section[] s_Sections =
+    {
+        new("Audio",
+            new SliderRow("Master volume", 0.7f),
+            new SliderRow("Music volume",  0.5f),
+            new SliderRow("SFX volume",    0.8f)),
+        new("Graphics",
+            new DropdownRow("Resolution", new[] { "1920x1080", "2560x1440", "3840x2160" }, 0),
+            new DropdownRow("Quality",    new[] { "Low", "Medium", "High", "Ultra" }, 2),
+            new ToggleRow("VSync", true)),
+        new("Controls",
+            new SliderRow("Sensitivity", 0.6f)),
+    };
+
+    void Start()
+    {
+        AutoUI.Create(transform)
+            .Column().WidthFill().HeightFill()
+            .Background(new Color(0.12f, 0.12f, 0.16f))
+            .Children(
+                BuildHeader(),
+                BuildScrollableBody(),
+                BuildFooter()
+            )
+            .Build();
+    }
+
+    private static LayoutBuilder BuildHeader() =>
+        AutoUI.Create()
+            .Row().WidthFill().HeightHug()
+            .Padding(20, 14).CrossAlign(Alignment.Center)
+            .Background(new Color(0.16f, 0.16f, 0.22f))
+            .Children(
+                AutoUI.Create().TextSize().Text("Settings", 22f, Color.white),
+                AutoUI.Create().WidthFill(),                              // spacer
+                AutoUI.Create().Width(28).Height(28)
+                    .Background(new Color(0, 0, 0, 0))
+                    .Text("✕", 18f, new Color(1, 1, 1, 0.7f))
+                    .OnClick(OnClose)
+            );
+
+    private static LayoutBuilder BuildScrollableBody() =>
+        AutoUI.Create()
+            .WidthFill().HeightFill()
+            .ScrollViewVertical()
+            .Children(
+                AutoUI.Create()
+                    .Column().WidthFill().HeightHug()
+                    .Padding(20).Gap(28)
+                    .Each(s_Sections, BuildSection)
+            );
+
+    private static LayoutBuilder BuildSection(Section section) =>
+        AutoUI.Create()
+            .Column().WidthFill().HeightHug().Gap(8)
+            .Children(
+                // Section label — small, dimmed, uppercase-style
+                AutoUI.Create().TextSize().Text(section.Title.ToUpperInvariant(), 11f,
+                    new Color(0.5f, 0.5f, 0.65f)),
+
+                // The actual rows, each as a 2-col grid
+                AutoUI.Create()
+                    .Column().WidthFill().HeightHug().Gap(4)
+                    .Each(section.Rows, BuildRow)
+            );
+
+    private static LayoutBuilder BuildRow(SettingRow row) =>
+        AutoUI.Create()
+            .Grid().WidthFill().HeightHug()
+            .ColumnSizes("auto 1f").Gap(12)
+            .CrossAlign(Alignment.Center)
+            .Children(
+                AutoUI.Create().TextSize().Text(row.Label, 13f, new Color(0.85f, 0.85f, 0.92f)),
+                BuildControl(row)
+            );
+
+    private static LayoutBuilder BuildControl(SettingRow row) => row switch
+    {
+        SliderRow s   => AutoUI.Create().WidthFill().Height(20)
+                            .ProgressBar(ProgressBarMode.Linear)
+                                .Value(s.Value)
+                                .FillColor(new Color(0.64f, 0.36f, 1f))
+                                .TrackColor(new Color(0.2f, 0.2f, 0.26f))
+                            .End(),
+        ToggleRow t   => AutoUI.Create().Width(40).Height(22)
+                            .Background(t.Value
+                                ? new Color(0.4f, 0.8f, 0.5f)
+                                : new Color(0.3f, 0.3f, 0.36f)),
+        DropdownRow d => AutoUI.Create().WidthFill().Height(28)
+                            .Dropdown()
+                                .Options(d.Options)
+                                .DefaultIndex(d.SelectedIndex)
+                            .End(),
+        _ => AutoUI.Create().WidthFill().Height(20)
+    };
+
+    private static LayoutBuilder BuildFooter() =>
+        AutoUI.Create()
+            .Row().WidthFill().HeightHug()
+            .Padding(20, 14).Gap(8)
+            .MainAlign(Alignment.End)
+            .Background(new Color(0.16f, 0.16f, 0.22f))
+            .Children(
+                AutoUI.Create().Width(100).Height(34).Button("Cancel", OnCancel),
+                AutoUI.Create().Width(100).Height(34).Button("Save",   OnSave)
+            );
+
+    private static void OnClose()  => Debug.Log("Close");
+    private static void OnCancel() => Debug.Log("Cancel");
+    private static void OnSave()   => Debug.Log("Save");
+}
+```
+
+### How it works
+
+#### The shell: header / body / footer
+
+```csharp
+.Column().WidthFill().HeightFill()
+.Children(
+    BuildHeader(),               // HeightHug
+    BuildScrollableBody(),       // HeightFill
+    BuildFooter()                // HeightHug
+)
+```
+
+The two `Hug` siblings claim only as much height as they need; the `Fill` body absorbs everything else. This is the standard "sticky header + sticky footer" pattern — works because the parent has a definite height (`HeightFill` from a parent canvas).
+
+#### Scrollable body
+
+```csharp
+AutoUI.Create()
+    .WidthFill().HeightFill()
+    .ScrollViewVertical()        // adds AutoLayoutScrollView component
+    .Children(
+        AutoUI.Create()
+            .Column().WidthFill().HeightHug()    // content shrinks vertically
+            .Each(s_Sections, BuildSection)
+    )
+```
+
+The outer ScrollView fills the body slot. Its single child is a `Column` with `HeightHug` — this lets the content grow as tall as it needs (which is what triggers scrolling). If you make it `HeightFill` instead, you'd never scroll.
+
+#### Sections via `Each<T>`
+
+```csharp
+.Each(s_Sections, BuildSection)
+```
+
+Pulls each `Section` from the data array and runs it through `BuildSection`. Adding a new section is **one new entry in `s_Sections`** — no UI changes.
+
+#### Two-column rows via Grid
+
+```csharp
+AutoUI.Create()
+    .Grid().WidthFill().HeightHug()
+    .ColumnSizes("auto 1f")              // label sized to text, control fills
+    .Gap(12).CrossAlign(Alignment.Center)
+```
+
+The `auto 1f` column-size template sizes the first column to its widest content (the label) and gives all remaining width to the control. Across all rows in a section, the labels align — clean readable form.
+
+#### Pattern matching for control type
+
+```csharp
+private static LayoutBuilder BuildControl(SettingRow row) => row switch
+{
+    SliderRow s   => /* ProgressBar */,
+    ToggleRow t   => /* colored rect */,
+    DropdownRow d => /* Dropdown */,
+};
+```
+
+C# 9+ pattern matching keeps the row-type → widget mapping in one place. Adding a new control type (e.g. `KeyBindingRow`) means a new record + a new arm in the switch.
+
+</TabItem>
+</Tabs>
+
+## Try this next
+
+**Persist on Save.** Bind each control's `OnValueChanged` to a model object via `Capture`. On Save, write the model to `PlayerPrefs` or your own settings store.
+
+**Section collapse.** Add a `^/▼` icon next to each section title; clicking toggles the section's `Visibility` between `Visible` and `Collapsed`. The scrollable body re-flows automatically.
+
+**Search filter.** Add an InputField above the scrollable body; on text change, hide rows whose label doesn't match. Use `.Visibility(...)` to keep them in the tree but out of layout.
+
+**Tab bar.** Replace the flat list of sections with a sidebar Column on the left (tabs) and the active section's rows in the body. Toggle each section's `Visibility` between `Visible` and `Collapsed` based on the selected tab.
+
+## See also
+
+- [ScrollView](/scroll-view/) — full reference
+- [Grid](/grid/) — track sizes including `auto`
+- [ProgressBar](/progress-bar/), [Dropdown](/dropdown/) — widgets used in the controls
+- [AutoUI Builder](/auto-ui/) — `Each<T>`, `Capture`, etc.

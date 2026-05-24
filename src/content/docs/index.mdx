@@ -1,0 +1,99 @@
+---
+title: AutoLayout PRO
+description: Figma-style auto-layout engine for Unity uGUI. Burst-compiled core, incremental rebuilds, and a sizing model designers already think in.
+template: splash
+hero:
+  tagline: Build Unity UIs the way you'd build them in Figma.
+  image:
+    file: ../../../public/logo.svg
+  actions:
+    - text: Get Started
+      link: /getting-started/
+      icon: right-arrow
+      variant: primary
+    - text: Why AutoLayout
+      link: /why-autolayout/
+      icon: information
+      variant: secondary
+    - text: Report a Bug
+      link: https://github.com/salepaun/autolayoutpro-issues/issues/new
+      icon: external
+      variant: minimal
+---
+
+import { Card, CardGrid, LinkCard } from '@astrojs/starlight/components';
+
+## Why AutoLayout PRO
+
+Coexists with Unity's `LayoutGroup` stack. Drop it onto one screen and port the rest at your own pace, or build new UIs from scratch with a sizing model designers already think in. No rewrite required.
+
+<CardGrid stagger>
+  <Card title="Figma-style sizing + CSS Grid" icon="setting">
+    Hug, Fill, Fixed, Percent, AspectRatio. The same primitives Figma uses, plus a real Grid with template tracks, `repeat()`, spans, dense packing, and auto-flow.
+  </Card>
+  <Card title="Six sizing modes" icon="puzzle">
+    Pixels, Hug, Fill, Percentage, AspectRatio, TextSize (intrinsic text bounds). Set per axis.
+  </Card>
+  <Card title="Burst-compiled core, incremental rebuilds" icon="rocket">
+    The core layout algorithm runs on Burst with persistent NativeArrays. Zero allocations during calculation. LayoutIslands mean a leaf change doesn't recompute the world. (uGUI's own RectTransform writes still allocate; that's Unity's code, not ours.)
+  </Card>
+  <Card title="Headless engine, multiple adapters" icon="seti:config">
+    The layout engine doesn't know what it's laying out. uGUI ships today. IMGUI and UI Toolkit adapters are in design, sharing the same engine.
+  </Card>
+  <Card title="Drop-in components" icon="document">
+    ScrollView, ListView, GridView, Carousel, Dropdown, ProgressBar. All pooled, virtualized, and aware of the layout engine.
+  </Card>
+  <Card title="Found a bug? One click." icon="comment-alt">
+    Right-click any AutoLayout component → **Report a Bug**. The issue auto-fills with your layout YAML so I can reproduce what you saw.
+  </Card>
+</CardGrid>
+
+## A taste of the API
+
+The `AutoUI` builder constructs UI hierarchies in code without manual GameObject setup:
+
+```csharp
+using AutoLayoutPRO.Builder;
+
+AutoUI.Create(transform)
+    .Column().Padding(16).Gap(8)
+    .Children(
+        AutoUI.Create().Row().Gap(8).Children(
+            AutoUI.Create().Text("My App", 24f),
+            AutoUI.Create().WidthFill(),                 // spacer
+            AutoUI.Create().Text("Settings")
+        ),
+        AutoUI.Create()
+            .WidthFill().HeightFill()
+            .Background(new Color(0.95f, 0.95f, 0.95f))
+            .Text("Hello world")
+    )
+    .Build();
+```
+
+Builders are pooled. After warmup, building a 100-node UI is roughly zero allocations.
+
+## Explore the docs
+
+<CardGrid>
+  <LinkCard
+    title="Getting Started"
+    description="Install, run the demos, and write your first layout in code or the Inspector."
+    href="/getting-started/"
+  />
+  <LinkCard
+    title="Core Layout"
+    description="The AutoLayout component, sizing modes, Row & Column, Grid, alignment, spacing."
+    href="/overview/"
+  />
+  <LinkCard
+    title="AutoUI Builder"
+    description="Code-first reference: composition, conditionals, captures, extensibility patterns."
+    href="/auto-ui/"
+  />
+  <LinkCard
+    title="Components"
+    description="ScrollView, ListView, GridView, Carousel, Dropdown, ProgressBar, Tweening."
+    href="/scroll-view/"
+  />
+</CardGrid>

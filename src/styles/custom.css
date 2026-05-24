@@ -1,0 +1,58 @@
+/* AutoLayout PRO — Figma-inspired theme overrides for Starlight.
+ * Palette draws from the Figma logo colors used in the AutoLayoutPRO icon:
+ *   Orange  #F24E1E
+ *   Purple  #A259FF  (primary accent)
+ *   Green   #0ACF83
+ *   Cyan    #1ABCFE  (secondary accent)
+ */
+
+:root {
+  /* Primary accent — purple from the Figma palette */
+  --sl-color-accent-low: #2a1d4a;
+  --sl-color-accent: #a259ff;
+  --sl-color-accent-high: #c39bff;
+
+  /* Typography — Inter for prose, JetBrains Mono for code */
+  --sl-font:
+    'Inter', ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont,
+    'Segoe UI', sans-serif;
+  --sl-font-mono:
+    'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas,
+    'Liberation Mono', monospace;
+}
+
+/* Dark theme — slightly cooler / less neutral than Starlight default */
+:root[data-theme='dark'] {
+  --sl-color-bg: #0e0f1a;
+  --sl-color-bg-nav: #14152a;
+  --sl-color-bg-sidebar: #14152a;
+  --sl-color-text-accent: var(--sl-color-accent-high);
+}
+
+/* Light theme — slight warm tint */
+:root[data-theme='light'] {
+  --sl-color-accent-low: #e9defa;
+  --sl-color-accent: #7c3df2;
+  --sl-color-accent-high: #5b1ed6;
+  --sl-color-bg: #fafafc;
+  --sl-color-bg-nav: #ffffff;
+  --sl-color-text-accent: var(--sl-color-accent);
+}
+
+/* Logo sizing — the Figma icon is square; constrain it nicely */
+.site-title img {
+  height: 1.6rem;
+  width: 1.6rem;
+}
+
+/* Pretty pill-style links in feature cards on the landing page */
+.card a {
+  text-decoration: none;
+}
+
+/* Subtle code block styling — slightly rounded corners are already applied
+ * via expressiveCode styleOverrides in astro.config; this just adds breathing room */
+.expressive-code {
+  margin-top: 1rem;
+  margin-bottom: 1.5rem;
+}

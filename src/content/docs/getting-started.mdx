@@ -1,0 +1,186 @@
+---
+title: Getting Started
+description: Quick start for AutoLayout PRO. Installation, demos, and your first layout.
+sidebar:
+  order: 1
+---
+
+import { Tabs, TabItem, Aside } from '@astrojs/starlight/components';
+
+AutoLayout PRO brings a Figma-style auto-layout model to Unity uGUI: Hug/Fill/Percent sizing, real Grid, and a Burst-compiled core. Drop it onto one component, mix freely with existing LayoutGroups, or build new UIs end-to-end.
+
+> New here? [Why AutoLayout?](/why-autolayout/) explains what problem this solves and how it relates to Unity's built-in layout stack and UI Toolkit.
+
+## Requirements
+
+- **Unity 2023.2 or newer** (Unity 6 / 6000.0 LTS recommended).
+- Built-in render pipeline, URP, or HDRP — AutoLayout is rendering-pipeline-agnostic.
+- The standard `com.unity.burst`, `com.unity.collections`, `com.unity.mathematics`, and `com.unity.textmeshpro` packages, all resolved automatically by Package Manager when you install AutoLayout PRO.
+
+## The simplest way
+
+Add the **AutoLayout** component to any UI GameObject (Add Component → AutoLayout). That's it. The component becomes the root of a new *layout island* unless its parent already has an AutoLayout, in which case it joins the parent's island.
+
+<Aside type="tip" title="🎬 GIF placeholder: add the component">
+Select a GameObject under a Canvas, Add Component → AutoLayout. The component appears in the Inspector with default settings; the GameObject is now an island root.
+</Aside>
+
+## Easier: the context menu
+
+In the Hierarchy, right-click any GameObject and choose **AutoLayout PRO → Row** (or Column, Grid, Wrap, ScrollView, ...). The new child arrives with an AutoLayout component already attached and sensible defaults for the layout type you picked.
+
+<Aside type="tip" title="🎬 GIF placeholder: context-menu shortcut">
+Right-click in Hierarchy → AutoLayout PRO → Row. New child GameObject appears with AutoLayout already configured as a Row, ready to receive children.
+</Aside>
+
+## Try the bundled demos
+
+The fastest way to see what's possible:
+
+1. Open **Window → Package Manager**.
+2. Select **AutoLayout PRO** in the list.
+3. Open the **Samples** tab and click **Import** next to *Demos*.
+4. Open any imported scene under `Assets/Samples/AutoLayout PRO/<version>/Demos/` and press Play.
+
+The Welcome window (open it via **Window → AutoLayout PRO → Welcome**) shows a curated list of demo scenes and component prefabs you can open with one click.
+
+## Build your first layout
+
+<Tabs syncKey="approach">
+
+<TabItem label="Inspector">
+
+1. Create a Canvas (**GameObject → UI → Canvas**).
+2. Add the **AutoLayout** component to any UI GameObject (Add Component → AutoLayout), or use the **AutoLayout PRO** context menu to drop in a pre-configured Row, Column, or Grid.
+3. Pick a Layout Type: **Row**, **Column**, **Grid**, **Absolute**, or **None**.
+4. Set Width and Height on each child. Pick from **Pixels**, **Hug**, **Fill**, **Percentage**, **AspectRatio**, or **TextSize** (intrinsic text bounds).
+
+AutoLayout can replace, or coexist with, Unity's built-in `LayoutGroup` + `ContentSizeFitter` + `LayoutElement`. One component instead of three, on the screens where you want it.
+
+<Aside type="tip" title="🎬 GIF placeholder: building a layout in the Inspector">
+Add AutoLayout to a Canvas-rooted GameObject, set Row, drop in a few children with WidthHug/HeightHug, watch them lay out automatically. Toggle Fill on one child to see it claim the leftover space.
+</Aside>
+
+See [Overview](/overview/) for a per-property reference.
+
+</TabItem>
+
+<TabItem label="Code">
+
+`AutoUI` is the static entry point for building UI hierarchies in code. It's in the namespace `AutoLayoutPRO.Builder`. Call it like this:
+
+```csharp
+using AutoLayoutPRO;
+using AutoLayoutPRO.Builder;
+using UnityEngine;
+
+public class MyUI : MonoBehaviour
+{
+    void Start()
+    {
+        AutoUI.Create(transform)
+            .Column().Padding(16).Gap(8)
+            .Children(
+                AutoUI.Create().Row().Gap(8).Children(
+                    AutoUI.Create().Text("My App", 24f),
+                    AutoUI.Create().WidthFill(),                 // spacer
+                    AutoUI.Create().Text("Settings")
+                ),
+                AutoUI.Create()
+                    .WidthFill().HeightFill()
+                    .Background(new Color(0.95f, 0.95f, 0.95f))
+                    .Text("Hello world")
+            )
+            .Build();
+    }
+}
+```
+
+Each call to `AutoUI.Create()` returns a `LayoutBuilder`. Chain methods to configure it; nest with `.Children(...)`; finalize the tree with `.Build()` (which materialises GameObjects and returns the root). Builders are pooled and single-use; calling `.Build()` twice on the same builder throws.
+
+See [AutoUI](/auto-ui/) for the full builder reference.
+
+</TabItem>
+
+</Tabs>
+
+### Mixing the two
+
+Build the outer shell in the Inspector, populate dynamic content with `AutoUI` at runtime. Use `.Child(GameObject)` to adopt existing prefab instances into a built tree.
+
+## Sizing modes at a glance
+
+| Mode | Builder method | What it does |
+|---|---|---|
+| Pixels | `.Width(120)` / `.Height(40)` | Fixed size in pixels |
+| Hug | `.WidthHug()` / `.HeightHug()` / `.Hug()` | Wrap children's combined size |
+| Fill | `.WidthFill()` / `.HeightFill()` / `.Fill()` | Share remaining parent space (weight-based) |
+| Percentage | `.WidthPercent(50)` / `.HeightPercent(25)` | A fraction of parent size |
+| AspectRatio | `.WidthAspect(1.5f)` / `.HeightAspect(1f)` | Maintain a width:height ratio |
+| TextSize | `.WidthTextSize()` / `.TextSize()` | Intrinsic size of text content (TMP) |
+
+Full details and edge cases: [Sizing → Sizing modes](/sizing/#sizing-modes).
+
+## Common patterns
+
+### Center a single child
+
+```csharp
+AutoUI.Create()
+    .WidthFill().HeightFill()
+    .Center()                                    // MainAlign + CrossAlign = Center
+    .Children(
+        AutoUI.Create().Width(200).Height(100).Text("Centered")
+    )
+    .Build();
+```
+
+### Build a list from data
+
+```csharp
+AutoUI.Create(parent)
+    .Column().Padding(16).Gap(4)
+    .Each(items, item =>
+        AutoUI.Create()
+            .WidthFill().HeightHug()
+            .Padding(8)
+            .Background(Color.gray)
+            .Text(item.Name))
+    .Build();
+```
+
+`.Each<T>(IEnumerable<T>, factory)` is the cheapest way to build N children: no `.ToArray()` or LINQ allocations. There's also `.Children(int count, Func<int, LayoutBuilder>)` for index-driven loops.
+
+### Conditional children
+
+```csharp
+AutoUI.Create()
+    .Column().Gap(8)
+    .Children(
+        AutoUI.Create().Text("Always shown"),
+        showAdvanced ? AutoUI.Create().Text("Advanced section") : null    // null entries are filtered
+    )
+    .If(isMobile, b => b.Padding(8))                // conditional config in-line
+    .Build();
+```
+
+### Capture a reference to the built component
+
+```csharp
+AutoLayout m_Card;
+
+AutoUI.Create()
+    .Column().Padding(16)
+    .CaptureLayout(layout => m_Card = layout)        // typed AutoLayout, not GameObject
+    .Children(...)
+    .Build();
+```
+
+## Next steps
+
+- [Overview](/overview/) — every AutoLayout property explained
+- [Sizing](/sizing/) — sizing modes, constraints
+- [Row & Column](/row-column/) · [Grid](/grid/) — children-arranging layouts
+- [Absolute](/absolute/) · [Margin](/margin/) · [Render Offset](/render-offset/) — positioning a single element
+- [AutoUI](/auto-ui/) — the code-first builder reference
+- [ScrollView](/scroll-view/) · [ListView](/list-view/) · [GridView](/grid-view/) · [Carousel](/carousel/) · [Dropdown](/dropdown/) · [ProgressBar](/progress-bar/) · [Tweening](/tweening/)

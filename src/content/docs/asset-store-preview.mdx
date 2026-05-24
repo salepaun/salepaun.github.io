@@ -1,0 +1,128 @@
+---
+title: Asset Store Preview
+description: Preview of the AutoLayout PRO Unity Asset Store listing screenshots and key marketing images.
+template: splash
+hero:
+  tagline: Marketing suite for the Asset Store listing — 8 carousel screenshots and 4 key images.
+  actions:
+    - text: Back to docs home
+      link: /
+      icon: right-arrow
+      variant: minimal
+pagefind: false
+---
+
+This page is a utility preview of the AutoLayout PRO Asset Store marketing suite. It's not part of the public docs flow — it's here so the assets can be reviewed at full resolution before submission to [publisher.unity.com](https://publisher.unity.com).
+
+All images render directly from the source HyperFrames compositions in `auto_layout/launch-video/screenshots/`. Re-render with `./render.sh` after editing.
+
+The display order below matches the intended Asset Store upload order. Filenames preserve their original render index (`01-…`, `02-…`) so the source compositions don't need to be renumbered.
+
+<div class="asset-grid">
+
+## Carousel screenshots — 8 × 2400×1600 (3:2)
+
+<figure>
+  <img src="/asset-store/01-hero.png" alt="01 — Hero title slate" />
+  <figcaption><strong>01 · Hero title slate.</strong> Logo + headline + coexistence one-liner.</figcaption>
+</figure>
+
+<figure>
+  <img src="/asset-store/05-inspector.png" alt="02 — Inspector close-up" />
+  <figcaption><strong>02 · Inspector.</strong> Real capture with section highlights.</figcaption>
+</figure>
+
+<figure>
+  <img src="/asset-store/03-sizing-modes.png" alt="03 — Sizing modes spotlight" />
+  <figcaption><strong>03 · Sizing modes.</strong> Pixels, Hug, Fill, Percentage, AspectRatio, TextSize.</figcaption>
+</figure>
+
+<figure>
+  <img src="/asset-store/04-layout-types.png" alt="04 — Layout type matrix" />
+  <figcaption><strong>04 · Layout types.</strong> Row, Column, Grid, Wrap, Absolute, Custom (ring).</figcaption>
+</figure>
+
+<figure>
+  <img src="/asset-store/06-grid-deep-dive.png" alt="05 — Grid" />
+  <figcaption><strong>05 · Grid.</strong> Single data-grid example demonstrating track sizes, manual placement, and spans together — header bar, row labels, hero card, wide card, footer cells.</figcaption>
+</figure>
+
+<figure>
+  <img src="/asset-store/07-fluent-ui.png" alt="06 — FluentUI code panel" />
+  <figcaption><strong>06 · FluentUI code panel.</strong> Profile-card example. Asterisk + footnote clarifies AutoLayout handles layout only; styling is your own setup.</figcaption>
+</figure>
+
+<figure>
+  <img src="/asset-store/08-virtualized.png" alt="07 — ListView + GridView" />
+  <figcaption><strong>07 · ListView + GridView.</strong> 1,000-item mocks.</figcaption>
+</figure>
+
+<figure>
+  <img src="/asset-store/02-engine-arch.png" alt="08 — Engine + performance" />
+  <figcaption><strong>08 · Engine + performance.</strong> Headless Burst-compiled core, soft "adapter possible" on UITK/IMGUI, honest end-to-end timing with footnote on where allocations can happen.</figcaption>
+</figure>
+
+## Key marketing images
+
+<figure class="kim icon">
+  <img src="/asset-store/K1-icon.png" alt="K1 — Icon" />
+  <figcaption><strong>K1 · Icon — 160×160.</strong> Displayed at 80×80 on icon-grid browse view. No text.</figcaption>
+</figure>
+
+<figure class="kim card">
+  <img src="/asset-store/K2-card.png" alt="K2 — Card" />
+  <figcaption><strong>K2 · Card — 420×280.</strong> Search-results thumbnail. Subject must read at 1:1 scale.</figcaption>
+</figure>
+
+<figure>
+  <img src="/asset-store/K3-cover.png" alt="K3 — Cover" />
+  <figcaption><strong>K3 · Cover — 1950×1300.</strong> Product-page hero. Subject inside central 80% safe zone.</figcaption>
+</figure>
+
+<figure>
+  <img src="/asset-store/K4-social.png" alt="K4 — Social / OG" />
+  <figcaption><strong>K4 · Social — 1200×630.</strong> Centered logo with brand gradient accent. No overlay text (per Unity community team spec: social images must not contain text).</figcaption>
+</figure>
+
+</div>
+
+<style>{`
+  .asset-grid { display: flex; flex-direction: column; gap: 2rem; }
+  .asset-grid figure {
+    margin: 0;
+    padding: 0;
+    border: 1px solid var(--sl-color-gray-5);
+    border-radius: 0.5rem;
+    overflow: hidden;
+    background: #0a0a0a;
+  }
+  .asset-grid figure img {
+    display: block;
+    width: 100%;
+    height: auto;
+  }
+  .asset-grid figure figcaption {
+    padding: 0.75rem 1rem;
+    font-size: 0.9rem;
+    color: var(--sl-color-gray-2);
+    background: var(--sl-color-gray-6);
+    border-top: 1px solid var(--sl-color-gray-5);
+  }
+  .asset-grid figure.kim img {
+    background: #0a0a0a;
+    max-width: 600px;
+    margin: 1.5rem auto;
+  }
+  .asset-grid figure.icon img { max-width: 160px; padding: 1rem; }
+  .asset-grid figure.card img { max-width: 420px; padding: 1rem; }
+  .asset-grid figure.video video {
+    display: block;
+    width: 100%;
+    height: auto;
+    background: #000;
+  }
+  .asset-grid h2 {
+    margin-top: 1rem !important;
+    font-size: 1.4rem !important;
+  }
+`}</style>
