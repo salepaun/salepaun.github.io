@@ -1,0 +1,365 @@
+---
+title: Vellum — XAML for Unity UI
+description: Technical preview of Vellum, an XAML-based UI authoring system built on top of AutoLayout PRO.
+template: splash
+hero:
+  tagline: One <code>.xaml</code> file per control, baked to a Unity prefab. Editor-only hot reload. Zero-allocation runtime. <em>Sneak preview — not yet shipping.</em>
+  actions:
+    - text: Back to docs home
+      link: /
+      icon: right-arrow
+      variant: minimal
+pagefind: false
+---
+
+import { Badge, Card, CardGrid, Aside } from '@astrojs/starlight/components';
+
+<div class="vellum-preview">
+
+<Aside type="caution" title="Preview spec">
+  Vellum is a companion package in active development. It is **not** part of the
+  AutoLayout PRO 1.x release on the Asset Store. This page is the v0.1 design
+  spec — published early for feedback. Names, APIs, and file layout are subject
+  to change before the first public release.
+</Aside>
+
+## What Vellum is
+
+Vellum is an XAML-based UI authoring system for Unity. One control per
+`.xaml` file produces a partial C# class with typed named-child accessors,
+plus a baked `.prefab` ready for `Object.Instantiate`. The XAML markup is the
+only authoring surface for both structure and styling.
+
+It exists to fix four concrete pains:
+
+1. Unity prefabs are component bags with no public interface — there is no
+   clean way to say *"this control has a `Title` and a fillable `Body` slot."*
+2. Prefabs (especially nested ones) are version-control hostile.
+3. Tweaking a padding value requires either a recompile (if in C#) or scene
+   surgery (if in the inspector).
+4. Manual scene hand-wiring of `GetComponentInChildren("Label")` strings is
+   fragile and untyped.
+
+The intended user is a Unity developer who already builds UI in code or via
+prefabs and wants a more declarative authoring loop **without rewriting their
+game**.
+
+## What it looks like
+
+```xml title="Assets/UI/Button.xaml"
+<Control x:Class="MyGame.UI.Button"
+         xmlns="https://vellum.salepaun.com/2026"
+         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+         xmlns:al="https://vellum.salepaun.com/2026/al">
+
+  <Row x:Name="Root" al:Width="300" al:Height="50"
+       Padding="12,8" Gap="6" CrossAlign="Center" Background="#2D2D2D">
+    <Image x:Name="Icon"  al:Width="16" al:Height="16" Visibility="Collapsed" />
+    <Text  x:Name="Label" FontSize="14" Color="#FFFFFF" Text="Button" />
+  </Row>
+
+</Control>
+```
+
+```csharp title="From any scene script"
+var btn = new MyGame.UI.Button();
+btn.Instantiate(canvas.transform);
+btn.Label.text = "Click me";
+btn.Clicked += () => Debug.Log("clicked");
+```
+
+Three files end up on disk per control:
+
+| File         | Author writes? | Notes                                    |
+|--------------|----------------|------------------------------------------|
+| `.xaml`      | yes            | source of truth — structure + styling    |
+| `.g.cs`      | no             | generated; named-child accessors          |
+| `.prefab`    | no             | generated; deterministic, GUID-stable     |
+
+…plus an optional `Button.cs` partial where you add event handlers and
+behaviour. All four are siblings in the same folder, all four committed to git.
+
+## Non-goals
+
+Vellum is **not**:
+
+- A WPF / Avalonia reimplementation. The XAML dialect is a deliberately
+  minimal subset — no `DependencyObject`, `RoutedEvents`, `Triggers`,
+  `Behaviors`, `ControlTemplates`, or full data-binding pipeline.
+- A replacement for Unity UI Toolkit. UI Toolkit owns its own runtime;
+  Vellum authors **uGUI** prefabs.
+- A theming framework. Per-environment themes, design tokens, and a
+  `ResourceDictionary`-equivalent are explicit non-goals for v0.1.
+- A view-model framework. MVVM / `INotifyPropertyChanged` / two-way bindings
+  are out of scope for v0.1 (deferred to v0.4).
+- A runtime markup loader. The XAML parser only runs at editor bake time;
+  shipping builds carry the baked `.prefab` only. Runtime XAML is a v0.3 goal.
+
+## Foundation: AutoLayout PRO
+
+Vellum is built on top of [AutoLayout PRO](/). Authoring a Vellum control
+means authoring an AutoLayout tree, so any non-trivial XAML attribute ends
+up writing to an `AutoLayout` component field.
+
+### Why Vellum builds on AutoLayout
+
+Three structural reasons:
+
+1. **The engine already exists.** AutoLayout already does the hard work of
+   measuring and arranging UI under uGUI: a three-phase calculation
+   (Gather → IntrinsicSizing → SpaceDistribution + Positioning), incremental
+   dirty propagation, per-frame scheduling via `UGUILayoutAdapter`,
+   `ILayoutElement` compatibility with legacy `LayoutGroup` parents.
+2. **AutoLayout's anchor convention is canonical.** Every AutoLayout-managed
+   `RectTransform` lives at `anchorMin = anchorMax = pivot = (0, 1)` with
+   `sizeDelta = Vector2.zero`. A Vellum-baked prefab is interoperable with
+   any other AutoLayout tree and never fights the engine over the meaning of
+   `RectTransform.rect`.
+3. **Hot reload works for free.** Live re-application of a XAML attribute
+   change only needs to call `UGUILayoutAdapter.Instance.MarkDirty(layout,
+   FullRecalc)` after writing the new value — AutoLayout's existing dirty
+   system reflows the entire subtree in the same editor frame.
+
+The choice **does** couple Vellum to AutoLayout in v0.1 (the
+`Vellum.AutoLayout` asmdef is the only registered backend). The architecture
+allows pluggable backends — a future `Vellum.uGUI`-only backend using
+`LayoutGroup`s, or a UI Toolkit backend, is possible — but designing for
+hypothetical backends was traded against shipping v0.1 with a clean,
+zero-allocation runtime path.
+
+### Sizing model — UnitType
+
+Six modes, applicable to both `Width` and `Height` independently:
+
+| UnitType      | Semantics                                                    |
+|---------------|--------------------------------------------------------------|
+| `Pixels`      | Fixed pixel size                                             |
+| `Hug`         | Size to wrap children (intrinsic content + padding)          |
+| `Fill`        | Weighted share of parent's remaining space (weight = value)  |
+| `Percentage`  | Percentage of parent's content area                          |
+| `AspectRatio` | Other-axis size × ratio (drives one axis from the other)     |
+| `TextSize`    | Text-content intrinsic size — for `<Text>` only              |
+
+The XAML parser accepts these spelled exactly as the enum names
+(case-insensitive), plus a few shorthands:
+
+```xml
+Width="300"           ← Pixels(300)
+Width="300px"         ← Pixels(300)
+Width="Hug"           ← Hug
+Width="Fill"          ← Fill(1)      — weight 1
+Width="Fill 2"        ← Fill(2)      — weight 2
+Width="2*"            ← Fill(2)      — Grid-track-style shorthand
+Width="50%"           ← Percentage(50)
+Width="Aspect 1.5"    ← AspectRatio(1.5)
+Width="TextSize"      ← TextSize
+```
+
+### Built-in elements (v0.1)
+
+| Element     | From package         | LayoutType   | Primary component         |
+|-------------|----------------------|--------------|---------------------------|
+| `Row`       | Vellum.AutoLayout    | Row          | _none — GameObject_       |
+| `Column`    | Vellum.AutoLayout    | Column       | _none — GameObject_       |
+| `Stack`     | Vellum.AutoLayout    | Column       | _alias for Column_        |
+| `Grid`      | Vellum.AutoLayout    | Grid         | _none — GameObject_       |
+| `Absolute`  | Vellum.AutoLayout    | Absolute     | _none — GameObject_       |
+| `Image`     | Vellum.uGUI          | None         | `UnityEngine.UI.Image`    |
+| `RawImage`  | Vellum.uGUI          | None         | `UnityEngine.UI.RawImage` |
+| `Text`      | Vellum.uGUI          | None         | `TMPro.TextMeshProUGUI`   |
+| `Button`    | Vellum.uGUI          | None         | `UnityEngine.UI.Button`   |
+| `r:PrefabRef` | Vellum.uGUI        | _legacy prefab_ | n/a                    |
+
+## Architecture overview
+
+### Assembly dependency layering
+
+```
+                Vellum.AutoLayout.Editor
+                       │
+        Vellum.uGUI.Editor    Vellum.AutoLayout
+                       │              │
+              Vellum.Editor    Vellum.uGUI
+                       │              │
+                       └── Vellum ────┘
+                              │
+                  (Unity.* core only)
+```
+
+- `Vellum` has **no** dependencies on Unity.UI, TMP, AutoLayout, or any
+  other Unity module.
+- `Vellum.uGUI` adds leaf visual elements (Image, Text, Button, RawImage).
+- `Vellum.AutoLayout` adds AutoLayout-specific layout panels and the
+  AutoLayout stylable properties. It's the only asmdef that depends on
+  AutoLayoutPRO.
+- `Vellum.Editor` is backend-agnostic — only knows the parser, codegen, and
+  bake pipeline.
+
+### The three cooperating registries
+
+<CardGrid>
+  <Card title="ElementRegistry" icon="seti:json">
+    `name → primary component type`
+    
+    `"Row" → GameObject`, `"Image" → Image`, `"Text" → TextMeshProUGUI`, …
+    
+    Used by codegen to type the accessor; used by the lowerer to validate
+    element names.
+  </Card>
+  <Card title="EditorElementFactoryRegistry" icon="seti:powershell">
+    `name → IElementFactory`
+    
+    Each factory's `Create(parent)` produces the GameObject at bake time
+    (with canonical anchors + the right `AutoLayout.LayoutType`).
+  </Card>
+  <Card title="StyleRegistry" icon="seti:settings">
+    `(element-type, key) → IPropertyCodec`
+    
+    Codecs parse attribute strings (or asset refs) and apply them to the
+    target component — used at bake time and on hot reload.
+  </Card>
+</CardGrid>
+
+## The pipeline
+
+```
+.xaml saved or imported
+        │
+        ▼
+XamlAssetPostprocessor.OnPostprocessAllAssets
+        │
+        ▼
+   ┌─── ProcessXaml(xamlPath) ───┐
+   │                              │
+   │  1. XamlParser.Parse         │  → ControlDecl (raw XML → typed model)
+   │  2. XamlObjectModelLowerer   │  → validates names, access, x:Class
+   │  3. (if errors → log + bail) │
+   │  4. Ensure prefab GUID exists│  → write a placeholder if missing
+   │  5. ControlCodeGenerator     │  → CodegenModel → .g.cs text
+   │  6. WriteIfChanged(.g.cs)    │  → diff-guarded; AssetDatabase.ImportAsset
+   │  7. BakedControlBuilder.Bake │  → walks ControlDecl, applies attributes,
+   │                              │     saves .prefab via PrefabUtility
+   │  8. XamlHotReloader.Refresh  │  → walks live instances, re-applies attrs
+   │                              │
+   └──────────────────────────────┘
+```
+
+Skip-on-unchanged: before saving the prefab, the builder computes an MD5
+hash of the parsed tree (in canonical attribute order). If it matches the
+existing prefab's `VellumBinding.BakeContentHash`, the bake exits with
+`Skipped = true` and no disk write occurs.
+
+### Hot reload (editor only)
+
+When you save a `.xaml`, the postprocessor calls
+`XamlHotReloader.Refresh(ctrl, sourceXamlGuid)` after a successful bake:
+
+```
+for each live Control in LiveInstanceRegistry:
+    binding = control.Root.GetComponent<VellumBinding>()
+    if binding.SourceXamlGuid != sourceXamlGuid: continue
+
+    walk ControlDecl tree and live Transform tree in parallel
+    re-apply every attribute via its codec on each matched node
+    HotReloadDirtyBridge.MarkDirty(control.Root)
+```
+
+`HotReloadDirtyBridge.MarkDirty` is an inversion-of-dependencies hook —
+`Vellum.AutoLayout.Editor.AutoLayoutHotReloadBridge` wires it at editor load
+to call `UGUILayoutAdapter.Instance.MarkDirty(layout, LayoutSettings |
+FullRecalc)`. Vellum.Editor itself knows nothing about AutoLayout.
+
+Visual-only edits (padding, color, font size, sprite) take effect on every
+live instance within one editor frame. Structural divergence stops the walk
+at the divergence point; re-instantiate the control to pick up the new shape.
+
+## Performance
+
+Runtime cost per `Instantiate` of a 30-element control:
+
+| Cost                                       | Time            | Allocs               |
+|--------------------------------------------|-----------------|----------------------|
+| `Object.Instantiate(prefab)` (Unity native) | ~0.3–0.5 ms    | Unity-native (no GC) |
+| `GetComponent<VellumBinding>` + N gets     | ~10–50 µs       | 0 B                  |
+| **Total**                                   | **~0.3–0.6 ms** | **0 B managed**      |
+
+The `~0.3 ms` floor is Unity's intrinsic prefab clone cost. Vellum adds
+zero overhead on top.
+
+## Production-readiness layers
+
+Three concrete pieces — all in v0.1 — make this safe to use on a team:
+
+- **Inspector banner.** Every Vellum prefab opens with a prominent red
+  *"Auto-generated by Vellum — direct edits will be overwritten on next
+  .xaml import"* banner, plus a quick-link button that opens the source
+  `.xaml`.
+- **Save interceptor.** A Unity `AssetModificationProcessor.OnWillSaveAssets`
+  hook detects saves to any prefab carrying a `VellumBinding` at its root.
+  Unless the bake pipeline itself initiated the save, a confirmation dialog
+  asks: *"Save anyway?"* Default: cancel.
+- **Integrity check.** A menu command at *AutoLayout PRO → Vellum → Check
+  Prefab Integrity* (also callable headless from CI) re-parses every `.xaml`
+  and compares a fresh content hash against the committed prefab's hash.
+  Reports divergence with file paths.
+
+Prefab GUIDs are preserved across re-bakes — scenes that reference a Vellum
+prefab survive arbitrary changes to its `.xaml`.
+
+## Limitations / known gaps (v0.1)
+
+- No prefab variants. A Unity variant of a Vellum-generated prefab will be
+  partly clobbered on re-bake. v0.2 considers detection + override
+  preservation.
+- No nested Vellum controls (`<MyButton x:Name="Ok" />`). v0.1 only supports
+  `<r:PrefabRef>` for legacy prefabs and inline children.
+- No per-environment themes. v0.2 considers sibling `.xaml`
+  (`Button.dark.xaml`, `Button.mobile.xaml`) producing additional prefabs.
+- No structure hot reload — adding or removing elements in `.xaml` requires
+  re-instantiating the control. Visual-only edits live-reload.
+- No data bindings — `{Binding ...}` lands in v0.2.
+- No localization integration. Text values are baked literals; runtime code
+  must set `control.Label.text = LocalizedStrings.Get(...)`.
+- One backend only (AutoLayout). Pluggability is real but unproven until a
+  second backend lands in v0.2.
+
+## Roadmap
+
+| Version | Scope                                                          |
+|---------|----------------------------------------------------------------|
+| v0.1    | Parser + codegen + bake + editor hot reload <Badge text="in progress" variant="caution" /> |
+| v0.2    | `<Slot>`, one-way bindings, nested Vellum controls, structure  |
+|         | hot reload, themes, second backend (Vellum.uGUI-only)          |
+| v0.3    | `ItemsControl` + virtualization, `ResourceDictionary` + design |
+|         | tokens, runtime XAML loader, Addressables                      |
+| v0.4    | Two-way bindings, MVVM helpers, `ControlTemplate`              |
+
+---
+
+<div class="vellum-feedback">
+
+### Have feedback?
+
+This spec is open for comment before v0.1 ships. Open an issue on the public
+[AutoLayout PRO bug tracker](https://github.com/salepaun/autolayoutpro-issues/issues/new?labels=vellum)
+with the **vellum** label, or drop a line via the
+[Reporting Bugs](/reporting-bugs/) page.
+
+</div>
+
+</div>
+
+<style>{`
+  .vellum-preview h2 { margin-top: 2.5rem; }
+  .vellum-preview h3 { margin-top: 1.5rem; }
+  .vellum-preview table { font-size: 0.92rem; }
+  .vellum-preview pre { font-size: 0.85rem; }
+  .vellum-feedback {
+    margin: 3rem 0 1rem;
+    padding: 1.25rem 1.5rem;
+    border: 1px solid var(--sl-color-gray-5);
+    border-radius: 0.5rem;
+    background: var(--sl-color-gray-6);
+  }
+  .vellum-feedback h3 { margin-top: 0; }
+`}</style>
